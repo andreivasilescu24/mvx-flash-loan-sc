@@ -5,7 +5,6 @@ use multiversx_sc::imports::*;
 
 const FLASH_LOAN_PERCENTAGE: u128 = 1000;
 
-/// An empty contract. To be used as a template when starting a new contract from scratch.
 #[multiversx_sc::contract]
 pub trait FlashLoan {
     #[init]
@@ -13,4 +12,15 @@ pub trait FlashLoan {
 
     #[upgrade]
     fn upgrade(&self) {}
+
+    #[endpoint(flashLoan)]
+    fn flash_loan(
+        &self,
+        loan_token_id: &EgldOrEsdtTokenIdentifier,
+        amount: BigUint,
+        loan_receiver_contract_addr: &ManagedAddress,
+        receiver_contract_endpoint: &ManagedBuffer<Self::Api>,
+        args: ManagedArgBuffer<Self::Api>,
+    ) {
+    }
 }
