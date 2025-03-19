@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
+use num_bigint::BigUint;
 
 const FLASH_LOAN_PERCENTAGE: u128 = 1000;
 
@@ -27,11 +28,18 @@ pub trait FlashLoan {
             "Loaned amount must be greater than 0"
         );
         self.check_contract_shard(loan_receiver_contract_addr);
+        self.check_loan_amount_available(&amount);
     }
 
     #[endpoint(flashLoanConfig)]
     #[only_owner]
-    fn flash_loan_config(&self) {}
+    fn flash_loan_config(&self, min_loan_amount: BigUint, fee_percentage: u128) {
+        self.min_loan_amount().set(min_loan_amount);
+    }
+
+    #[endpoint(repayLoan)]
+    #[payable("EGLD")] // for the moment
+    fn repay_loan(&self) {}
 
     fn check_contract_shard(&self, contract_addr: &ManagedAddress) {
         let my_contract_addr = self.blockchain().get_sc_address();
@@ -41,4 +49,18 @@ pub trait FlashLoan {
             "Contract is not in the same shard"
         );
     }
+
+    fn check_loan_amount_available(&self, amount: &BigUint) {
+        require!(amount <= &self.get_max_loan(), "Not enough funds available");
+    }
+
+    #[view(getMaxLoan)]
+    fn get_max_loan(&self) -> BigUint {
+        self.blockchain()
+            .get_sc_balance(&EgldOrEsdtTokenIdentifier::egld(), 0)
+    }
+
+    #[view(getMinLoan)]
+    #[storage_mapper("minLoanAmount")]
+    fn min_loan_amount(&self) -> SingleValueMapper<BigUint>;
 }
