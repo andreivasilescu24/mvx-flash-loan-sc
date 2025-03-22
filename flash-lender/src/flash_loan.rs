@@ -2,14 +2,15 @@
 
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
-use num_bigint::BigUint;
-
-const FLASH_LOAN_PERCENTAGE: u128 = 1000;
+use multiversx_sc::storage;
 
 #[multiversx_sc::contract]
 pub trait FlashLoan {
     #[init]
-    fn init(&self) {}
+    fn init(&self, min_loan_amount: BigUint, fee_percentage: BigUint) {
+        self.min_loan_amount().set(min_loan_amount);
+        self.fee_percentage().set(fee_percentage);
+    }
 
     #[upgrade]
     fn upgrade(&self) {}
@@ -29,12 +30,17 @@ pub trait FlashLoan {
         );
         self.check_contract_shard(loan_receiver_contract_addr);
         self.check_loan_amount_available(&amount);
+
+        // set ongoing flash loan
+        // loan tx
+        // check if paid back
     }
 
     #[endpoint(flashLoanConfig)]
     #[only_owner]
-    fn flash_loan_config(&self, min_loan_amount: BigUint, fee_percentage: u128) {
+    fn flash_loan_config(&self, min_loan_amount: BigUint, fee_percentage: BigUint) {
         self.min_loan_amount().set(min_loan_amount);
+        self.fee_percentage().set(fee_percentage);
     }
 
     #[endpoint(repayLoan)]
@@ -63,4 +69,8 @@ pub trait FlashLoan {
     #[view(getMinLoan)]
     #[storage_mapper("minLoanAmount")]
     fn min_loan_amount(&self) -> SingleValueMapper<BigUint>;
+
+    #[view(getFeePercentage)]
+    #[storage_mapper("feePercentage")]
+    fn fee_percentage(&self) -> SingleValueMapper<BigUint>;
 }

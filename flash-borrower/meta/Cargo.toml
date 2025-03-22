@@ -1,0 +1,12 @@
+[package]
+name = "flash-borrower-meta"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies.flash-borrower]
+path = ".."
+
+[dependencies.multiversx-sc-meta-lib]
+version = "0.57.0"
+default-features = false
