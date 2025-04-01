@@ -31,6 +31,17 @@ pub trait FlashLoan {
         self.check_contract_shard(loan_receiver_contract_addr);
         self.check_loan_amount_available(&amount);
 
+        require!(!self.active_loan().get(), "Loan already active");
+
+        self.active_loan().set(true);
+
+        let initial_balance = self.blockchain().get_sc_balance(loan_token_id, 0);
+
+        self.tx()
+            .to(loan_receiver_contract_addr)
+            .typed()
+        // .egld(&amount.into())
+
         // set ongoing flash loan
         // loan tx
         // check if paid back
@@ -73,4 +84,7 @@ pub trait FlashLoan {
     #[view(getFeePercentage)]
     #[storage_mapper("feePercentage")]
     fn fee_percentage(&self) -> SingleValueMapper<BigUint>;
+
+    #[storage_mapper("activeLoan")]
+    fn active_loan(&self) -> SingleValueMapper<bool>;
 }
