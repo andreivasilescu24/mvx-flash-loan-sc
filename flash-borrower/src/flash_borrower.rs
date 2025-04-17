@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
 
+pub mod flash_borrower_proxy;
 // const FEE_PERCENTAGE: u128 =
 
 /// An empty contract. To be used as a template when starting a new contract from scratch.
