@@ -1,7 +1,5 @@
 #![no_std]
 
-use core::arch::x86_64;
-
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
 use multiversx_sc::storage;
@@ -9,6 +7,10 @@ use multiversx_sc::storage;
 use flash_borrower::flash_borrower_proxy::FlashBorrowerProxy;
 
 const NUM_DECIMALS: usize = 4;
+
+// TODO:
+// - add esdt token support
+// - add liquidity for users endpoint + withdraw liquidity + withdraw reward
 
 #[multiversx_sc::contract]
 pub trait FlashLoan {
@@ -43,8 +45,6 @@ pub trait FlashLoan {
         self.check_contract_shard(loan_receiver_contract_addr);
         self.check_loan_amount_available(&amount);
 
-        let initial_balance = self.blockchain().get_sc_balance(loan_token_id, 0);
-
         // loan tx
         let loaned_amount = amount.clone();
 
@@ -54,8 +54,10 @@ pub trait FlashLoan {
             .typed(FlashBorrowerProxy)
             .flash()
             .egld(&amount.into())
-            .returns(ReturnsBackTransfers)
+            .returns(ReturnsBackTransfersReset)
             .sync_call();
+
+        sc_print!("Received {}", back_transfers.total_egld_amount);
 
         // check if paid back
         self.check_flash_loan_repayment(&back_transfers, &loaned_amount);
@@ -91,8 +93,12 @@ pub trait FlashLoan {
         require!(amount <= &self.get_max_loan(), "Not enough funds available");
     }
 
-    fn compute_loan_repayment_amount(&self) -> BigUint {
-        BigUint::from(0u128)
+    fn compute_loan_repayment_amount(
+        &self,
+        loaned_amount: &ManagedDecimal<Self::Api, NumDecimals>,
+    ) -> ManagedDecimal<Self::Api, NumDecimals> {
+        let fee = loaned_amount.clone().mul(self.fee_basis_points().get());
+        loaned_amount.clone().add(fee)
     }
 
     fn check_flash_loan_repayment(
@@ -102,13 +108,21 @@ pub trait FlashLoan {
     ) {
         let repaid_egld_value = &loan_back_transfers.total_egld_amount;
 
-        let fee_percentage_basis_points = self.fee_basis_points().get();
-        let loaned_amount_decimal =
-            ManagedDecimal::from_raw_units(loaned_amount.clone(), NUM_DECIMALS);
+        // Convert loaned amount to ManagedDecimal for precision calculations
+        let loaned_amount_decimal = ManagedDecimal::from_raw_units(loaned_amount.clone(), 0);
 
-        // compute total egld value that should be repaid
+        // Calculate the total repayment amount (principal + fee)
+        let total_repayment_decimal = self.compute_loan_repayment_amount(&loaned_amount_decimal);
 
-        // require repaid >= expected
+        // Convert back to BigUint for comparison with the repaid amount
+        let total_repayment = total_repayment_decimal.trunc();
+
+        require!(
+            repaid_egld_value >= &total_repayment,
+            "Insufficient repayment: required {} EGLD, received {} EGLD",
+            total_repayment,
+            repaid_egld_value
+        );
     }
 
     #[view(getMaxLoan)]

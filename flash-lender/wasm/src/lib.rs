@@ -25,7 +25,7 @@ multiversx_sc_wasm_adapter::endpoints! {
         repayLoan => repay_loan
         getMaxLoan => get_max_loan
         getMinLoan => min_loan_amount
-        getFeePercentage => fee_percentage
+        getFeeBasisPoints => fee_basis_points
     )
 }
 

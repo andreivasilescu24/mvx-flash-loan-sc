@@ -2,6 +2,8 @@
 members = [
     "flash-borrower",
     "flash-borrower/meta",
+    "flash-borrower/interactor",
     "flash-lender",
     "flash-lender/meta",
+    "flash-lender/interactor",
 ]

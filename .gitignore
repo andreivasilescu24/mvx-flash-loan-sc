@@ -1,6 +1,6 @@
 */target/
 output
-*/*.pem
+*.pem
 
 # Added by cargo
 
