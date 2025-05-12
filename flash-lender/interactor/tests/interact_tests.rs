@@ -35,7 +35,7 @@ async fn test_flash_loan() {
     let mut interactor = ContractInteract::new(Config::new()).await;
 
     let loan_amount = 2_000_000_000_000_000_00u128;
-    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqrgn9dqa9v92wkfhdeq5277h37n54ft43d8ssl2veux";
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqklxgha3gw6ukkk66p7sxsjk0559ejlh4d8ss57ywkk";
 
     interactor
         .flash_loan(receiver_contract_addr, loan_amount)

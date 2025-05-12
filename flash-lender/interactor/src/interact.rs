@@ -155,8 +155,9 @@ impl ContractInteract {
         let loan_token_id = EgldOrEsdtTokenIdentifier::egld();
         let amount_biguint = BigUint::<StaticApi>::from(amount);
         let loan_receiver_contract_addr = bech32::decode(receiver_addr);
-        let receiver_contract_endpoint = ManagedBuffer::new_from_bytes(&b""[..]);
-        let args = ManagedArgBuffer::new();
+        let receiver_contract_endpoint = ManagedBuffer::new_from_bytes(&b"flash"[..]);
+        let mut args = ManagedArgBuffer::new();
+        args.push_arg(BigUint::<StaticApi>::from(0u128));
 
         let response = self
             .interactor

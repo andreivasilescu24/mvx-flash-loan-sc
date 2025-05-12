@@ -51,13 +51,15 @@ pub trait FlashLoan {
         let back_transfers = self
             .tx()
             .to(loan_receiver_contract_addr)
-            .typed(FlashBorrowerProxy)
-            .flash()
+            .raw_call(receiver_contract_endpoint)
+            .arguments_raw(args)
             .egld(&amount.into())
             .returns(ReturnsBackTransfersReset)
             .sync_call();
 
-        sc_print!("Received {}", back_transfers.total_egld_amount);
+        // back_transfers.esdt_payments.
+
+        // sc_print!("Received {}", back_transfers.total_egld_amount);
 
         // check if paid back
         self.check_flash_loan_repayment(&back_transfers, &loaned_amount);
@@ -77,7 +79,7 @@ pub trait FlashLoan {
     }
 
     #[endpoint(repayLoan)]
-    #[payable("EGLD")] // for the moment
+    #[payable("*")] // for the moment
     fn repay_loan(&self) {}
 
     fn check_contract_shard(&self, contract_addr: &ManagedAddress) {

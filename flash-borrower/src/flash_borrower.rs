@@ -17,7 +17,7 @@ pub trait FlashBorrower {
 
     #[payable("EGLD")]
     #[endpoint(flash)]
-    fn flash(&self) {
+    fn flash(&self, arg: BigUint) {
         let payment = self.call_value().egld_or_single_esdt();
         let lender = self.blockchain().get_caller();
 
