@@ -27,7 +27,7 @@ pub async fn flash_loan_cli() {
         // "flashLoan" => interact.flash_loan().await,
         "flashLoanConfig" => interact.flash_loan_config().await,
         "repayLoan" => interact.repay_loan().await,
-        "getMaxLoan" => interact.get_max_loan().await,
+        // "getMaxLoan" => interact.get_max_loan().await,
         "getMinLoan" => interact.min_loan_amount().await,
         "getFeeBasisPoints" => interact.fee_basis_points().await,
         _ => panic!("unknown command: {}", &cmd),
@@ -151,8 +151,8 @@ impl ContractInteract {
         println!("Result: {response:?}");
     }
 
-    pub async fn flash_loan(&mut self, receiver_addr: &str, amount: u128) {
-        let loan_token_id = EgldOrEsdtTokenIdentifier::egld();
+    pub async fn flash_loan(&mut self, receiver_addr: &str, amount: u128, token_id: String) {
+        let loan_token_id = EgldOrEsdtTokenIdentifier::from(token_id.as_bytes());
         let amount_biguint = BigUint::<StaticApi>::from(amount);
         let loan_receiver_contract_addr = bech32::decode(receiver_addr);
         let receiver_contract_endpoint = ManagedBuffer::new_from_bytes(&b"flash"[..]);
@@ -218,18 +218,18 @@ impl ContractInteract {
         println!("Result: {response:?}");
     }
 
-    pub async fn get_max_loan(&mut self) {
+    pub async fn get_max_loan(&mut self, token_id: &String) {
         let result_value = self
             .interactor
             .query()
             .to(self.state.current_address())
             .typed(proxy::FlashLoanProxy)
-            .get_max_loan()
+            .get_max_loan(EgldOrEsdtTokenIdentifier::from(token_id.as_bytes()))
             .returns(ReturnsResultUnmanaged)
             .run()
             .await;
 
-        println!("Result: {result_value:?}");
+        println!("Max balance for token: {result_value:?}");
     }
 
     pub async fn min_loan_amount(&mut self) {

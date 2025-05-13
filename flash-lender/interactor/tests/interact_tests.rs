@@ -1,9 +1,12 @@
+use clap::builder::Str;
 use multiversx_sc_snippets::imports::*;
 use rust_interact::{config::Config, ContractInteract};
 
 // Simple deploy test that runs on the real blockchain configuration.
 // In order for this test to work, make sure that the `config.toml` file contains the real blockchain config (or choose it manually)
 // Can be run with `sc-meta test`.
+// const esdt_token_id: String = String::from("FLT-03f83f");
+
 #[tokio::test]
 #[ignore = "run on demand, relies on real blockchain state"]
 async fn deploy_test_flash_loan() {
@@ -31,17 +34,31 @@ async fn test_flash_config() {
 }
 
 #[tokio::test]
-async fn test_flash_loan() {
+async fn test_flash_loan_scenario() {
     let mut interactor = ContractInteract::new(Config::new()).await;
 
-    let loan_amount = 2_000_000_000_000_000_00u128;
-    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqklxgha3gw6ukkk66p7sxsjk0559ejlh4d8ss57ywkk";
+    let loan_amount = 2000000000000000000u128; // 2 egld/test esdt token
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgq0ugg5w5ks6kq60c03j4qy8yxylxpdh6hd8ssvl3e3d";
+    let token_id = String::from("FLT-03f83f");
+
+    interactor.get_max_loan(&token_id).await;
+
+    let token_id_clone = token_id.clone();
 
     interactor
-        .flash_loan(receiver_contract_addr, loan_amount)
+        .flash_loan(receiver_contract_addr, loan_amount, token_id)
         .await;
 
+    interactor.get_max_loan(&token_id_clone).await;
+
     println!("Flash loan executed successfully");
+}
+
+#[tokio::test]
+async fn test_max_loan() {
+    let token_id = String::from("FLT-03f83f");
+    let mut interactor = ContractInteract::new(Config::new()).await;
+    interactor.get_max_loan(&token_id).await;
 }
 
 // ManagedDecimal tests

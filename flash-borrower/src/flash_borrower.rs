@@ -15,21 +15,35 @@ pub trait FlashBorrower {
     #[upgrade]
     fn upgrade(&self) {}
 
-    #[payable("EGLD")]
+    #[payable("*")]
     #[endpoint(flash)]
     fn flash(&self, arg: BigUint) {
-        let payment = self.call_value().egld_or_single_esdt();
+        let mut payment = self.call_value().egld_or_single_esdt();
         let lender = self.blockchain().get_caller();
 
-        let received_loan = ManagedDecimal::from_raw_units(payment.amount, 0);
-        let fee_percentage = ManagedDecimal::from_raw_units(BigUint::from(FEE_BASIS_POINTS), 4);
-        let fee = received_loan.clone().mul(fee_percentage.clone());
-        let repay_amount = received_loan.clone().add(fee.clone());
+        // let received_loan = ManagedDecimal::from_raw_units(payment.amount, 0);
+        // let fee_percentage = ManagedDecimal::from_raw_units(BigUint::from(FEE_BASIS_POINTS), 4);
+        // let fee = received_loan.clone().mul(fee_percentage.clone());
+        // let repay_amount = received_loan.clone().add(fee.clone());
 
-        self.tx()
-            .to(&lender)
-            .payment(EgldOrEsdtTokenPayment::egld_payment(repay_amount.trunc()))
-            .transfer();
+        payment.amount += payment
+            .amount
+            .clone()
+            .mul(BigUint::from(FEE_BASIS_POINTS))
+            .div(BigUint::from(1000u128));
+
+        // let token_id = payment.token_identifier;
+
+        self.tx().to(&lender).payment(payment).transfer();
+
+        // self.tx()
+        //     .to(&lender)
+        //     .payment(EgldOrEsdtTokenPayment::new(
+        //         token_id,
+        //         0,
+        //         repay_amount.into_raw_units().clone(),
+        //     ))
+        //     .transfer();
 
         // let repayment = payment.amount.mul(FLAS)
     }

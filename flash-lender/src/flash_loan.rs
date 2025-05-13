@@ -2,7 +2,6 @@
 
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
-use multiversx_sc::storage;
 
 use flash_borrower::flash_borrower_proxy::FlashBorrowerProxy;
 
@@ -43,17 +42,14 @@ pub trait FlashLoan {
             "Loaned amount must be greater than 0"
         );
         self.check_contract_shard(loan_receiver_contract_addr);
-        self.check_loan_amount_available(&amount);
-
-        // loan tx
-        let loaned_amount = amount.clone();
+        self.check_loan_amount_available(&amount, loan_token_id);
 
         let back_transfers = self
             .tx()
             .to(loan_receiver_contract_addr)
             .raw_call(receiver_contract_endpoint)
             .arguments_raw(args)
-            .egld(&amount.into())
+            .egld_or_single_esdt(loan_token_id, 0, &amount)
             .returns(ReturnsBackTransfersReset)
             .sync_call();
 
@@ -62,7 +58,7 @@ pub trait FlashLoan {
         // sc_print!("Received {}", back_transfers.total_egld_amount);
 
         // check if paid back
-        self.check_flash_loan_repayment(&back_transfers, &loaned_amount);
+        self.check_flash_loan_repayment(&back_transfers, loan_token_id, &amount);
     }
 
     #[endpoint(flashLoanConfig)]
@@ -79,7 +75,7 @@ pub trait FlashLoan {
     }
 
     #[endpoint(repayLoan)]
-    #[payable("*")] // for the moment
+    #[payable("*")]
     fn repay_loan(&self) {}
 
     fn check_contract_shard(&self, contract_addr: &ManagedAddress) {
@@ -91,8 +87,15 @@ pub trait FlashLoan {
         );
     }
 
-    fn check_loan_amount_available(&self, amount: &BigUint) {
-        require!(amount <= &self.get_max_loan(), "Not enough funds available");
+    fn check_loan_amount_available(
+        &self,
+        amount: &BigUint,
+        loan_token_id: &EgldOrEsdtTokenIdentifier,
+    ) {
+        require!(
+            amount <= &self.get_max_loan(loan_token_id),
+            "Not enough balance available for the requested token"
+        );
     }
 
     fn compute_loan_repayment_amount(
@@ -106,9 +109,28 @@ pub trait FlashLoan {
     fn check_flash_loan_repayment(
         &self,
         loan_back_transfers: &BackTransfers<Self::Api>,
+        token_id: &EgldOrEsdtTokenIdentifier,
         loaned_amount: &BigUint,
     ) {
-        let repaid_egld_value = &loan_back_transfers.total_egld_amount;
+        let repaid_token_value = if token_id.is_egld() {
+            &loan_back_transfers.total_egld_amount
+        } else {
+            let repay_esdt_transfers = &loan_back_transfers.esdt_payments;
+
+            require!(
+                repay_esdt_transfers.len() == 1,
+                "Expected exactly one ESDT payment for repayment"
+            );
+
+            let repayment = repay_esdt_transfers.get(0);
+
+            require!(
+                repayment.token_identifier == token_id.clone(),
+                "Token used for repayment doesn't match the loan token"
+            );
+
+            &repayment.clone().amount
+        };
 
         // Convert loaned amount to ManagedDecimal for precision calculations
         let loaned_amount_decimal = ManagedDecimal::from_raw_units(loaned_amount.clone(), 0);
@@ -120,17 +142,18 @@ pub trait FlashLoan {
         let total_repayment = total_repayment_decimal.trunc();
 
         require!(
-            repaid_egld_value >= &total_repayment,
-            "Insufficient repayment: required {} EGLD, received {} EGLD",
+            repaid_token_value >= &total_repayment,
+            "Insufficient repayment: required {} {}, received {} {}",
             total_repayment,
-            repaid_egld_value
+            token_id,
+            repaid_token_value,
+            token_id
         );
     }
 
     #[view(getMaxLoan)]
-    fn get_max_loan(&self) -> BigUint {
-        self.blockchain()
-            .get_sc_balance(&EgldOrEsdtTokenIdentifier::egld(), 0)
+    fn get_max_loan(&self, token_id: &EgldOrEsdtTokenIdentifier) -> BigUint {
+        self.blockchain().get_sc_balance(token_id, 0)
     }
 
     #[view(getMinLoan)]

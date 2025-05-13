@@ -137,12 +137,16 @@ where
             .original_result()
     }
 
-    pub fn get_max_loan(
+    pub fn get_max_loan<
+        Arg0: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+    >(
         self,
+        token_id: Arg0,
     ) -> TxTypedCall<Env, From, To, NotPayable, Gas, BigUint<Env::Api>> {
         self.wrapped_tx
             .payment(NotPayable)
             .raw_call("getMaxLoan")
+            .argument(&token_id)
             .original_result()
     }
 
