@@ -6,9 +6,9 @@
 
 // Init:                                 1
 // Upgrade:                              1
-// Endpoints:                            6
+// Endpoints:                           12
 // Async Callback (empty):               1
-// Total number of exported functions:   9
+// Total number of exported functions:  15
 
 #![no_std]
 
@@ -22,8 +22,14 @@ multiversx_sc_wasm_adapter::endpoints! {
         upgrade => upgrade
         flashLoan => flash_loan
         flashLoanConfig => flash_loan_config
-        repayLoan => repay_loan
+        addLiquidity => add_liquidity
+        withdrawLiquidity => withdraw_liquidity
+        claimFees => claim_fees
+        withdrawSurplus => withdraw_surplus
+        getSurplusBalance => get_surplus_balance
         getMaxLoan => get_max_loan
+        getUserLiquidity => get_user_liquidity
+        getPendingFees => get_pending_fees
         getMinLoan => min_loan_amount
         getFeeBasisPoints => fee_basis_points
     )

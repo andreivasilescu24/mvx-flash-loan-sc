@@ -144,6 +144,8 @@ impl ContractInteract {
     pub async fn flash(&mut self) {
         let egld_amount = BigUint::<StaticApi>::from(0u128);
 
+        let arg = BigUint::<StaticApi>::from(0u128);
+
         let response = self
             .interactor
             .tx()
@@ -151,7 +153,7 @@ impl ContractInteract {
             .to(self.state.current_address())
             .gas(30_000_000u64)
             .typed(proxy::FlashBorrowerProxy)
-            .flash()
+            .profit_generator(arg)
             .egld(egld_amount)
             .returns(ReturnsResultUnmanaged)
             .run()

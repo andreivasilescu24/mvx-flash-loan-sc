@@ -81,11 +81,15 @@ where
     To: TxTo<Env>,
     Gas: TxGas<Env>,
 {
-    pub fn flash(
+    pub fn profit_generator<
+        Arg0: ProxyArg<BigUint<Env::Api>>,
+    >(
         self,
+        arg: Arg0,
     ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
         self.wrapped_tx
-            .raw_call("flash")
+            .raw_call("profitGenerator")
+            .argument(&arg)
             .original_result()
     }
 }

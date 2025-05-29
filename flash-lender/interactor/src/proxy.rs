@@ -129,11 +129,66 @@ where
             .original_result()
     }
 
-    pub fn repay_loan(
+    pub fn add_liquidity(
         self,
     ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
         self.wrapped_tx
-            .raw_call("repayLoan")
+            .raw_call("addLiquidity")
+            .original_result()
+    }
+
+    pub fn withdraw_liquidity<
+        Arg0: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+        Arg1: ProxyArg<BigUint<Env::Api>>,
+    >(
+        self,
+        token_id: Arg0,
+        amount: Arg1,
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, ()> {
+        self.wrapped_tx
+            .payment(NotPayable)
+            .raw_call("withdrawLiquidity")
+            .argument(&token_id)
+            .argument(&amount)
+            .original_result()
+    }
+
+    pub fn claim_fees<
+        Arg0: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+    >(
+        self,
+        token_id: Arg0,
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, ()> {
+        self.wrapped_tx
+            .payment(NotPayable)
+            .raw_call("claimFees")
+            .argument(&token_id)
+            .original_result()
+    }
+
+    pub fn withdraw_surplus<
+        Arg0: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+    >(
+        self,
+        token_id: Arg0,
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, ()> {
+        self.wrapped_tx
+            .payment(NotPayable)
+            .raw_call("withdrawSurplus")
+            .argument(&token_id)
+            .original_result()
+    }
+
+    pub fn get_surplus_balance<
+        Arg0: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+    >(
+        self,
+        token_id: Arg0,
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, BigUint<Env::Api>> {
+        self.wrapped_tx
+            .payment(NotPayable)
+            .raw_call("getSurplusBalance")
+            .argument(&token_id)
             .original_result()
     }
 
@@ -146,6 +201,38 @@ where
         self.wrapped_tx
             .payment(NotPayable)
             .raw_call("getMaxLoan")
+            .argument(&token_id)
+            .original_result()
+    }
+
+    pub fn get_user_liquidity<
+        Arg0: ProxyArg<ManagedAddress<Env::Api>>,
+        Arg1: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+    >(
+        self,
+        user: Arg0,
+        token_id: Arg1,
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, BigUint<Env::Api>> {
+        self.wrapped_tx
+            .payment(NotPayable)
+            .raw_call("getUserLiquidity")
+            .argument(&user)
+            .argument(&token_id)
+            .original_result()
+    }
+
+    pub fn get_pending_fees<
+        Arg0: ProxyArg<ManagedAddress<Env::Api>>,
+        Arg1: ProxyArg<EgldOrEsdtTokenIdentifier<Env::Api>>,
+    >(
+        self,
+        user: Arg0,
+        token_id: Arg1,
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, BigUint<Env::Api>> {
+        self.wrapped_tx
+            .payment(NotPayable)
+            .raw_call("getPendingFees")
+            .argument(&user)
             .argument(&token_id)
             .original_result()
     }

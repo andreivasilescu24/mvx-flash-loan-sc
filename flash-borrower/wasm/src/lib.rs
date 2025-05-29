@@ -20,7 +20,7 @@ multiversx_sc_wasm_adapter::endpoints! {
     (
         init => init
         upgrade => upgrade
-        flash => flash
+        profitGenerator => profit_generator
     )
 }
 

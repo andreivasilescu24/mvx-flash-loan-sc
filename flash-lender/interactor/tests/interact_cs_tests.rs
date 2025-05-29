@@ -11,5 +11,5 @@ use rust_interact::{config::Config, ContractInteract};
 async fn deploy_test_flash_loan_cs() {
     let mut interactor = ContractInteract::new(Config::chain_simulator_config()).await;
 
-    interactor.deploy().await;
+    interactor.deploy(1000).await;
 }

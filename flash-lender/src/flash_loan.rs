@@ -3,14 +3,7 @@
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
 
-use flash_borrower::flash_borrower_proxy::FlashBorrowerProxy;
-
 const NUM_DECIMALS: usize = 4;
-
-// TODO:
-// - add esdt token support
-// - add liquidity for users endpoint + withdraw liquidity + withdraw reward
-
 #[multiversx_sc::contract]
 pub trait FlashLoan {
     #[init]
@@ -41,6 +34,10 @@ pub trait FlashLoan {
             amount > BigUint::from(0u128),
             "Loaned amount must be greater than 0"
         );
+        require!(
+            amount >= self.min_loan_amount().get(),
+            "Loan amount is below minimum"
+        );
         self.check_contract_shard(loan_receiver_contract_addr);
         self.check_loan_amount_available(&amount, loan_token_id);
 
@@ -53,13 +50,11 @@ pub trait FlashLoan {
             .returns(ReturnsBackTransfersReset)
             .sync_call();
 
-        // back_transfers.esdt_payments.
-
-        // sc_print!("Received {}", back_transfers.total_egld_amount);
-
         // check if paid back
         self.check_flash_loan_repayment(&back_transfers, loan_token_id, &amount);
-        self.distribute_flash_loan_fee(loan_token_id, &amount);
+
+        // Emit flash loan event
+        self.flash_loan_executed_event(loan_receiver_contract_addr, loan_token_id, &amount);
     }
 
     #[endpoint(flashLoanConfig)]
@@ -97,7 +92,8 @@ pub trait FlashLoan {
         self.user_liquidity_amount(&caller, token_id)
             .update(|amount| *amount += &payment.amount);
 
-        // Update fee debt based on new position and current accumulated fees per share
+        // Update fee debt: user should only be liable for fees accumulated
+        // from this point forward on their entire position
         let user_amount = self.user_liquidity_amount(&caller, token_id).get();
         let accumulated_fees_per_share = self.accumulated_fees_per_share(token_id).get();
         let new_fee_debt =
@@ -113,6 +109,9 @@ pub trait FlashLoan {
         if !self.user_liquidity_tokens(&caller).contains(token_id) {
             self.user_liquidity_tokens(&caller).insert(token_id.clone());
         }
+
+        // Emit liquidity added event
+        self.liquidity_added_event(&caller, token_id, &payment.amount);
     }
 
     #[endpoint(withdrawLiquidity)]
@@ -153,6 +152,102 @@ pub trait FlashLoan {
 
         // Send tokens back to user
         self.send().direct(&caller, token_id, 0, &amount);
+
+        // Emit withdraw liquidity event
+        self.liquidity_withdrawn_event(&caller, token_id, &amount);
+    }
+
+    #[endpoint(claimFees)]
+    fn claim_fees(&self, token_id: &EgldOrEsdtTokenIdentifier) {
+        let caller = self.blockchain().get_caller();
+
+        // Update pending fees first
+        self.claim_fees_internal(&caller, token_id);
+
+        let pending_fees = self.user_pending_fees(&caller, token_id).get();
+
+        require!(pending_fees > BigUint::zero(), "No fees to claim");
+
+        // Reset pending fees
+        self.user_pending_fees(&caller, token_id).clear();
+
+        // Update user_fee_debt to the current accumulated fees per share
+        // This ensures that getPendingFees returns 0 after claiming
+        let user_amount = self.user_liquidity_amount(&caller, token_id).get();
+        let accumulated_fees_per_share = self.accumulated_fees_per_share(token_id).get();
+        let precision = BigUint::from(1_000_000_000u64);
+        let new_fee_debt = &user_amount * &accumulated_fees_per_share / &precision;
+
+        self.user_fee_debt(&caller, token_id).set(new_fee_debt);
+
+        // Send fees to user
+        self.send().direct(&caller, token_id, 0, &pending_fees);
+
+        // Emit claim fees event
+        self.fees_claimed_event(&caller, token_id, &pending_fees);
+    }
+
+    #[endpoint(withdrawSurplus)]
+    #[only_owner]
+    fn withdraw_surplus(&self, token_id: &EgldOrEsdtTokenIdentifier) {
+        let surplus_balance = self.get_surplus_balance(token_id);
+
+        require!(
+            surplus_balance > BigUint::zero(),
+            "No surplus balance to withdraw"
+        );
+
+        self.send().direct(
+            &self.blockchain().get_caller(),
+            token_id,
+            0,
+            &surplus_balance,
+        );
+    }
+
+    #[view(getSurplusBalance)]
+    fn get_surplus_balance(&self, token_id: &EgldOrEsdtTokenIdentifier) -> BigUint {
+        self.blockchain().get_sc_balance(&token_id, 0) - self.total_liquidity(token_id).get()
+    }
+
+    #[view(getMaxLoan)]
+    fn get_max_loan(&self, token_id: &EgldOrEsdtTokenIdentifier) -> BigUint {
+        // Only user-provided liquidity tokens, not all contract balance
+        self.total_liquidity(token_id).get()
+    }
+
+    #[view(getUserLiquidity)]
+    fn get_user_liquidity(
+        &self,
+        user: &ManagedAddress,
+        token_id: &EgldOrEsdtTokenIdentifier,
+    ) -> BigUint {
+        self.user_liquidity_amount(user, token_id).get()
+    }
+
+    #[view(getPendingFees)]
+    fn get_pending_fees(
+        &self,
+        user: &ManagedAddress,
+        token_id: &EgldOrEsdtTokenIdentifier,
+    ) -> BigUint {
+        let user_amount = self.user_liquidity_amount(user, token_id).get();
+        if user_amount == BigUint::zero() {
+            return BigUint::zero();
+        }
+
+        let current_accumulated = self.accumulated_fees_per_share(token_id).get();
+        let user_debt = self.user_fee_debt(user, token_id).get();
+        let stored_pending = self.user_pending_fees(user, token_id).get();
+
+        let precision = BigUint::from(1_000_000_000u64);
+        let calculated_fees = &user_amount * &current_accumulated / &precision;
+
+        if calculated_fees > user_debt {
+            stored_pending + (&calculated_fees - &user_debt)
+        } else {
+            stored_pending
+        }
     }
 
     fn check_contract_shard(&self, contract_addr: &ManagedAddress) {
@@ -226,11 +321,46 @@ pub trait FlashLoan {
             repaid_token_value,
             token_id
         );
+
+        // Get the surplus (flash loan fee)
+        let paid_fee = repaid_token_value - loaned_amount;
+
+        self.distribute_flash_loan_fee(token_id, &paid_fee);
     }
 
-    #[view(getMaxLoan)]
-    fn get_max_loan(&self, token_id: &EgldOrEsdtTokenIdentifier) -> BigUint {
-        self.blockchain().get_sc_balance(token_id, 0)
+    fn distribute_flash_loan_fee(&self, token_id: &EgldOrEsdtTokenIdentifier, paid_fee: &BigUint) {
+        let total_liquidity = self.total_liquidity(token_id).get();
+
+        if total_liquidity == BigUint::zero() {
+            return; // No liquidity providers to distribute to
+        }
+
+        if paid_fee > &BigUint::zero() {
+            // Distribute fee proportionally to all liquidity providers
+            let precision = BigUint::from(1_000_000_000u64);
+            let additional_fees_per_share = (paid_fee * &precision) / &total_liquidity;
+
+            self.accumulated_fees_per_share(token_id)
+                .update(|accumulated| *accumulated += &additional_fees_per_share);
+        }
+    }
+
+    fn claim_fees_internal(&self, user: &ManagedAddress, token_id: &EgldOrEsdtTokenIdentifier) {
+        let user_amount = self.user_liquidity_amount(user, token_id).get();
+        let accumulated_fees_per_share = self.accumulated_fees_per_share(token_id).get();
+        let user_fee_debt = self.user_fee_debt(user, token_id).get();
+
+        let precision = BigUint::from(1_000_000_000u64);
+        let pending_fees = &user_amount * &accumulated_fees_per_share / &precision;
+
+        if pending_fees > user_fee_debt {
+            let fees_to_claim = &pending_fees - &user_fee_debt;
+
+            if fees_to_claim > BigUint::zero() {
+                self.user_pending_fees(user, token_id)
+                    .update(|pending| *pending += &fees_to_claim);
+            }
+        }
     }
 
     #[view(getMinLoan)]
@@ -260,28 +390,6 @@ pub trait FlashLoan {
         user: &ManagedAddress,
     ) -> UnorderedSetMapper<EgldOrEsdtTokenIdentifier>;
 
-    // Rewards tracking
-    // #[storage_mapper("accumulatedRewardsPerShare")]
-    // fn accumulated_rewards_per_share(
-    //     &self,
-    //     token_id: &EgldOrEsdtTokenIdentifier,
-    // ) -> SingleValueMapper<BigUint>;
-
-    // #[storage_mapper("userRewardDebt")]
-    // fn user_reward_debt(
-    //     &self,
-    //     user: &ManagedAddress,
-    //     token_id: &EgldOrEsdtTokenIdentifier,
-    // ) -> SingleValueMapper<BigUint>;
-
-    // Remove these storage mappers completely:
-    // - accumulated_rewards_per_share
-    // - user_reward_debt
-    // - last_reward_block (referenced in update_reward_pool but not defined)
-    // - reward_per_block (referenced in update_reward_pool but not defined)
-    // - user_pending_rewards (referenced in claim_rewards_internal but not defined)
-
-    // Keep only these for fee distribution:
     #[storage_mapper("accumulatedFeesPerShare")]
     fn accumulated_fees_per_share(
         &self,
@@ -302,106 +410,35 @@ pub trait FlashLoan {
         token_id: &EgldOrEsdtTokenIdentifier,
     ) -> SingleValueMapper<BigUint>;
 
-    fn distribute_flash_loan_fee(
+    #[event("flash_loan_executed")]
+    fn flash_loan_executed_event(
         &self,
-        token_id: &EgldOrEsdtTokenIdentifier,
-        loan_amount: &BigUint,
-    ) {
-        let total_liquidity = self.total_liquidity(token_id).get();
+        #[indexed] borrower: &ManagedAddress,
+        #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
+        amount: &BigUint,
+    );
 
-        if total_liquidity == BigUint::zero() {
-            return; // No liquidity providers to distribute to
-        }
-
-        // Calculate fee amount
-        let loan_amount_decimal = ManagedDecimal::from_raw_units(loan_amount.clone(), 0);
-        let fee_decimal = loan_amount_decimal.mul(self.fee_basis_points().get());
-        let fee_amount = fee_decimal.trunc();
-
-        if fee_amount > BigUint::zero() {
-            // Distribute fee proportionally to all liquidity providers
-            let precision = BigUint::from(1_000_000_000u64);
-            let additional_fees_per_share = &fee_amount * &precision / &total_liquidity;
-
-            self.accumulated_fees_per_share(token_id)
-                .update(|accumulated| *accumulated += &additional_fees_per_share);
-        }
-    }
-
-    fn claim_fees_internal(&self, user: &ManagedAddress, token_id: &EgldOrEsdtTokenIdentifier) {
-        let user_amount = self.user_liquidity_amount(user, token_id).get();
-        let accumulated_fees_per_share = self.accumulated_fees_per_share(token_id).get();
-        let user_fee_debt = self.user_fee_debt(user, token_id).get();
-
-        let precision = BigUint::from(1_000_000_000u64);
-        let pending_fees = &user_amount * &accumulated_fees_per_share / &precision;
-
-        if pending_fees > user_fee_debt {
-            let fees_to_claim = &pending_fees - &user_fee_debt;
-
-            if fees_to_claim > BigUint::zero() {
-                self.user_pending_fees(user, token_id)
-                    .update(|pending| *pending += &fees_to_claim);
-            }
-        }
-    }
-``
-    #[view(getUserLiquidity)]
-    fn get_user_liquidity(
+    #[event("liquidity_added")]
+    fn liquidity_added_event(
         &self,
-        user: &ManagedAddress,
-        token_id: &EgldOrEsdtTokenIdentifier,
-    ) -> BigUint {
-        self.user_liquidity_amount(user, token_id).get()
-    }
+        #[indexed] user: &ManagedAddress,
+        #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
+        amount: &BigUint,
+    );
 
-    #[view(getPendingFees)]
-    fn get_pending_fees(
+    #[event("liquidity_withdrawn")]
+    fn liquidity_withdrawn_event(
         &self,
-        user: &ManagedAddress,
-        token_id: &EgldOrEsdtTokenIdentifier,
-    ) -> BigUint {
-        let user_amount = self.user_liquidity_amount(user, token_id).get();
-        if user_amount == BigUint::zero() {
-            return BigUint::zero();
-        }
+        #[indexed] user: &ManagedAddress,
+        #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
+        amount: &BigUint,
+    );
 
-        let current_accumulated = self.accumulated_fees_per_share(token_id).get();
-        let user_debt = self.user_fee_debt(user, token_id).get();
-        let stored_pending = self.user_pending_fees(user, token_id).get();
-
-        let precision = BigUint::from(1_000_000_000u64);
-        let calculated_fees = &user_amount * &current_accumulated / &precision;
-
-        if calculated_fees > user_debt {
-            stored_pending + (&calculated_fees - &user_debt)
-        } else {
-            stored_pending
-        }
-    }
-
-    // #[event("liquidity_added")]
-    // fn liquidity_added_event(
-    //     &self,
-    //     #[indexed] user: &ManagedAddress,
-    //     #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
-    //     amount: &BigUint,
-    //     timestamp: u64,
-    // );
-
-    // #[event("liquidity_withdrawn")]
-    // fn liquidity_withdrawn_event(
-    //     &self,
-    //     #[indexed] user: &ManagedAddress,
-    //     #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
-    //     amount: &BigUint,
-    // );
-
-    // #[event("rewards_claimed")]
-    // fn rewards_claimed_event(
-    //     &self,
-    //     #[indexed] user: &ManagedAddress,
-    //     #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
-    //     amount: &BigUint,
-    // );
+    #[event("fees_claimed")]
+    fn fees_claimed_event(
+        &self,
+        #[indexed] user: &ManagedAddress,
+        #[indexed] token_id: &EgldOrEsdtTokenIdentifier,
+        amount: &BigUint,
+    );
 }

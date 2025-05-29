@@ -4,7 +4,7 @@
 use multiversx_sc::imports::*;
 
 pub mod flash_borrower_proxy;
-const FEE_BASIS_POINTS: u128 = 5;
+const FEE_BASIS_POINTS: u128 = 1000;
 
 /// An empty contract. To be used as a template when starting a new contract from scratch.
 #[multiversx_sc::contract]
@@ -16,8 +16,8 @@ pub trait FlashBorrower {
     fn upgrade(&self) {}
 
     #[payable("*")]
-    #[endpoint(flash)]
-    fn flash(&self, arg: BigUint) {
+    #[endpoint(profitGenerator)]
+    fn profit_generator(&self, arg: BigUint) {
         let mut payment = self.call_value().egld_or_single_esdt();
         let lender = self.blockchain().get_caller();
 
@@ -30,9 +30,11 @@ pub trait FlashBorrower {
             .amount
             .clone()
             .mul(BigUint::from(FEE_BASIS_POINTS))
-            .div(BigUint::from(1000u128));
+            .div(BigUint::from(10_000u128));
 
         // let token_id = payment.token_identifier;
+
+        // execute arbitrage
 
         self.tx().to(&lender).payment(payment).transfer();
 
