@@ -13,7 +13,7 @@ use std::{
 
 const STATE_FILE: &str = "state.toml";
 
-pub async fn flash_borrower_cli() {
+pub async fn profit_maker_cli() {
     env_logger::init();
 
     let mut args = std::env::args();
@@ -22,9 +22,9 @@ pub async fn flash_borrower_cli() {
     let config = Config::new();
     let mut interact = ContractInteract::new(config).await;
     match cmd.as_str() {
-        "deploy" => interact.deploy().await,
         "upgrade" => interact.upgrade().await,
-        "profitGen" => interact.profit_generator().await,
+        "takeProfit" => interact.take_profit().await,
+        "getFeeBasisPoints" => interact.fee_basis_points().await,
         _ => panic!("unknown command: {}", &cmd),
     }
 }
@@ -82,7 +82,7 @@ impl ContractInteract {
             .await
             .use_chain_simulator(config.use_chain_simulator());
 
-        interactor.set_current_dir_from_workspace("flash-borrower");
+        interactor.set_current_dir_from_workspace("profit-maker");
         let wallet_address = interactor.register_wallet(test_wallets::alice()).await;
 
         // Useful in the chain simulator setting
@@ -90,7 +90,7 @@ impl ContractInteract {
         interactor.generate_blocks_until_epoch(1).await.unwrap();
 
         let contract_code = BytesValue::interpret_from(
-            "mxsc:../output/flash-borrower.mxsc.json",
+            "mxsc:../output/profit-maker.mxsc.json",
             &InterpreterContext::default(),
         );
 
@@ -102,14 +102,16 @@ impl ContractInteract {
         }
     }
 
-    pub async fn deploy(&mut self) {
+    pub async fn deploy(&mut self, fee_bps: u128) {
+        let fee_basis_points = BigUint::<StaticApi>::from(fee_bps);
+
         let new_address = self
             .interactor
             .tx()
             .from(&self.wallet_address)
             .gas(30_000_000u64)
-            .typed(proxy::FlashBorrowerProxy)
-            .init()
+            .typed(proxy::ProfitMakerProxy)
+            .init(fee_basis_points)
             .code(&self.contract_code)
             .code_metadata(CodeMetadata::PAYABLE)
             .returns(ReturnsNewAddress)
@@ -130,7 +132,7 @@ impl ContractInteract {
             .to(self.state.current_address())
             .from(&self.wallet_address)
             .gas(30_000_000u64)
-            .typed(proxy::FlashBorrowerProxy)
+            .typed(proxy::ProfitMakerProxy)
             .upgrade()
             .code(&self.contract_code)
             .code_metadata(CodeMetadata::UPGRADEABLE)
@@ -141,10 +143,10 @@ impl ContractInteract {
         println!("Result: {response:?}");
     }
 
-    pub async fn profit_generator(&mut self) {
-        let egld_amount = BigUint::<StaticApi>::from(0u128);
-
-        let arg = BigUint::<StaticApi>::from(0u128);
+    pub async fn take_profit(&mut self) {
+        let token_id = String::new();
+        let token_nonce = 0u64;
+        let token_amount = BigUint::<StaticApi>::from(0u128);
 
         let response = self
             .interactor
@@ -152,9 +154,13 @@ impl ContractInteract {
             .from(&self.wallet_address)
             .to(self.state.current_address())
             .gas(30_000_000u64)
-            .typed(proxy::FlashBorrowerProxy)
-            .profit_generator(arg)
-            .egld(egld_amount)
+            .typed(proxy::ProfitMakerProxy)
+            .take_profit()
+            .payment((
+                TokenIdentifier::from(token_id.as_str()),
+                token_nonce,
+                token_amount,
+            ))
             .returns(ReturnsResultUnmanaged)
             .run()
             .await;
@@ -162,22 +168,17 @@ impl ContractInteract {
         println!("Result: {response:?}");
     }
 
-    pub async fn config_addr(&mut self, contract_address: &str) {
-        let profit_generator_address =
-            Bech32Address::from_bech32_string(contract_address.to_string());
-
-        let response = self
+    pub async fn fee_basis_points(&mut self) {
+        let result_value = self
             .interactor
-            .tx()
-            .from(&self.wallet_address)
+            .query()
             .to(self.state.current_address())
-            .gas(30_000_000u64)
-            .typed(proxy::FlashBorrowerProxy)
-            .config_profit_generator_address(profit_generator_address)
+            .typed(proxy::ProfitMakerProxy)
+            .fee_basis_points()
             .returns(ReturnsResultUnmanaged)
             .run()
             .await;
 
-        println!("Result: {response:?}");
+        println!("Result: {result_value:?}");
     }
 }

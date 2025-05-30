@@ -1,22 +1,13 @@
 use multiversx_sc_snippets::imports::*;
-use rust_interact_borrower::{config::Config, ContractInteract};
+use rust_interact_profit_maker::{config::Config, ContractInteract};
 
 // Simple deploy test that runs on the real blockchain configuration.
 // In order for this test to work, make sure that the `config.toml` file contains the real blockchain config (or choose it manually)
 // Can be run with `sc-meta test`.
 #[tokio::test]
 #[ignore = "run on demand, relies on real blockchain state"]
-async fn deploy_test_flash_borrower() {
+async fn deploy_test_profit_maker() {
     let mut interactor = ContractInteract::new(Config::new()).await;
 
-    interactor.deploy().await;
-}
-
-#[tokio::test]
-async fn config_contract_address() {
-    let mut interactor = ContractInteract::new(Config::new()).await;
-
-    let contractAddr = "erd1qqqqqqqqqqqqqpgqx8l8xan0fk7fgjgruz7c9u6smrpx2dw9d8ss86gt7k";
-
-    interactor.config_addr(contractAddr).await;
+    interactor.deploy(1000u128).await;
 }

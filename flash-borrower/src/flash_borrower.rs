@@ -2,11 +2,12 @@
 
 #[allow(unused_imports)]
 use multiversx_sc::imports::*;
+use multiversx_sc::{chain_core::types::Address, hex_literal::hex};
 
-pub mod flash_borrower_proxy;
+use profit_maker::profit_maker_proxy::ProfitMakerProxy;
+
 const FEE_BASIS_POINTS: u128 = 1000;
 
-/// An empty contract. To be used as a template when starting a new contract from scratch.
 #[multiversx_sc::contract]
 pub trait FlashBorrower {
     #[init]
@@ -15,38 +16,41 @@ pub trait FlashBorrower {
     #[upgrade]
     fn upgrade(&self) {}
 
+    #[endpoint(configProfitGeneratorAddress)]
+    fn config_profit_generator_address(&self, profit_generator_address: &ManagedAddress) {
+        self.profit_generator_address()
+            .set(profit_generator_address);
+    }
+
     #[payable("*")]
     #[endpoint(profitGenerator)]
-    fn profit_generator(&self, arg: BigUint) {
+    fn profit_generator(&self, _arg: BigUint) {
         let mut payment = self.call_value().egld_or_single_esdt();
         let lender = self.blockchain().get_caller();
 
-        // let received_loan = ManagedDecimal::from_raw_units(payment.amount, 0);
-        // let fee_percentage = ManagedDecimal::from_raw_units(BigUint::from(FEE_BASIS_POINTS), 4);
-        // let fee = received_loan.clone().mul(fee_percentage.clone());
-        // let repay_amount = received_loan.clone().add(fee.clone());
+        require!(
+            !self.profit_generator_address().is_empty(),
+            "Profit generator address not set"
+        );
 
+        self.tx()
+            .to(self.profit_generator_address().get())
+            .typed(ProfitMakerProxy)
+            .take_profit()
+            .payment(payment.clone())
+            .sync_call();
+
+        // Calculate the fee based on the payment amount
         payment.amount += payment
             .amount
             .clone()
             .mul(BigUint::from(FEE_BASIS_POINTS))
             .div(BigUint::from(10_000u128));
 
-        // let token_id = payment.token_identifier;
-
-        // execute arbitrage
-
+        // repay the loan + fees
         self.tx().to(&lender).payment(payment).transfer();
-
-        // self.tx()
-        //     .to(&lender)
-        //     .payment(EgldOrEsdtTokenPayment::new(
-        //         token_id,
-        //         0,
-        //         repay_amount.into_raw_units().clone(),
-        //     ))
-        //     .transfer();
-
-        // let repayment = payment.amount.mul(FLAS)
     }
+
+    #[storage_mapper("profitGeneratorAddress")]
+    fn profit_generator_address(&self) -> SingleValueMapper<ManagedAddress>;
 }

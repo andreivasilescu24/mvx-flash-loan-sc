@@ -9,23 +9,23 @@
 
 use multiversx_sc::proxy_imports::*;
 
-pub struct FlashBorrowerProxy;
+pub struct ProfitMakerProxy;
 
-impl<Env, From, To, Gas> TxProxyTrait<Env, From, To, Gas> for FlashBorrowerProxy
+impl<Env, From, To, Gas> TxProxyTrait<Env, From, To, Gas> for ProfitMakerProxy
 where
     Env: TxEnv,
     From: TxFrom<Env>,
     To: TxTo<Env>,
     Gas: TxGas<Env>,
 {
-    type TxProxyMethods = FlashBorrowerProxyMethods<Env, From, To, Gas>;
+    type TxProxyMethods = ProfitMakerProxyMethods<Env, From, To, Gas>;
 
     fn proxy_methods(self, tx: Tx<Env, From, To, (), Gas, (), ()>) -> Self::TxProxyMethods {
-        FlashBorrowerProxyMethods { wrapped_tx: tx }
+        ProfitMakerProxyMethods { wrapped_tx: tx }
     }
 }
 
-pub struct FlashBorrowerProxyMethods<Env, From, To, Gas>
+pub struct ProfitMakerProxyMethods<Env, From, To, Gas>
 where
     Env: TxEnv,
     From: TxFrom<Env>,
@@ -36,25 +36,29 @@ where
 }
 
 #[rustfmt::skip]
-impl<Env, From, Gas> FlashBorrowerProxyMethods<Env, From, (), Gas>
+impl<Env, From, Gas> ProfitMakerProxyMethods<Env, From, (), Gas>
 where
     Env: TxEnv,
     Env::Api: VMApi,
     From: TxFrom<Env>,
     Gas: TxGas<Env>,
 {
-    pub fn init(
+    pub fn init<
+        Arg0: ProxyArg<BigUint<Env::Api>>,
+    >(
         self,
+        fee_basis_points: Arg0,
     ) -> TxTypedDeploy<Env, From, NotPayable, Gas, ()> {
         self.wrapped_tx
             .payment(NotPayable)
             .raw_deploy()
+            .argument(&fee_basis_points)
             .original_result()
     }
 }
 
 #[rustfmt::skip]
-impl<Env, From, To, Gas> FlashBorrowerProxyMethods<Env, From, To, Gas>
+impl<Env, From, To, Gas> ProfitMakerProxyMethods<Env, From, To, Gas>
 where
     Env: TxEnv,
     Env::Api: VMApi,
@@ -73,7 +77,7 @@ where
 }
 
 #[rustfmt::skip]
-impl<Env, From, To, Gas> FlashBorrowerProxyMethods<Env, From, To, Gas>
+impl<Env, From, To, Gas> ProfitMakerProxyMethods<Env, From, To, Gas>
 where
     Env: TxEnv,
     Env::Api: VMApi,
@@ -81,28 +85,21 @@ where
     To: TxTo<Env>,
     Gas: TxGas<Env>,
 {
-    pub fn config_profit_generator_address<
-        Arg0: ProxyArg<ManagedAddress<Env::Api>>,
-    >(
+    /// Add desired amount to the storage variable. 
+    pub fn take_profit(
         self,
-        profit_generator_address: Arg0,
-    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, ()> {
+    ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
         self.wrapped_tx
-            .payment(NotPayable)
-            .raw_call("configProfitGeneratorAddress")
-            .argument(&profit_generator_address)
+            .raw_call("takeProfit")
             .original_result()
     }
 
-    pub fn profit_generator<
-        Arg0: ProxyArg<BigUint<Env::Api>>,
-    >(
+    pub fn fee_basis_points(
         self,
-        _arg: Arg0,
-    ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
+    ) -> TxTypedCall<Env, From, To, NotPayable, Gas, BigUint<Env::Api>> {
         self.wrapped_tx
-            .raw_call("profitGenerator")
-            .argument(&_arg)
+            .payment(NotPayable)
+            .raw_call("getFeeBasisPoints")
             .original_result()
     }
 }

@@ -40,7 +40,7 @@ async fn test_flash_loan_scenario() {
     let mut interactor = ContractInteract::new(Config::new()).await;
 
     let loan_amount = 1000000000000000000u128; // 1 egld/test esdt token
-    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqnyk6nrh6tdyh9cwsfw9pfkdvqf0xz6hgd8ss437fd7";
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqdw45jsjguux55rnv6u4vctezlnra0wm0d8ssyrtstf";
     let token_id = String::from("EGLD");
 
     interactor.get_max_loan(&token_id).await;

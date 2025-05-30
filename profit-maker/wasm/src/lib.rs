@@ -16,12 +16,12 @@ multiversx_sc_wasm_adapter::allocator!();
 multiversx_sc_wasm_adapter::panic_handler!();
 
 multiversx_sc_wasm_adapter::endpoints! {
-    flash_borrower
+    profit_maker
     (
         init => init
         upgrade => upgrade
-        configProfitGeneratorAddress => config_profit_generator_address
-        profitGenerator => profit_generator
+        takeProfit => take_profit
+        getFeeBasisPoints => fee_basis_points
     )
 }
 

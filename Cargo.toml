@@ -6,4 +6,7 @@ members = [
     "flash-lender",
     "flash-lender/meta",
     "flash-lender/interactor",
+    "profit-maker",
+    "profit-maker/meta",
+    "profit-maker/interactor",
 ]

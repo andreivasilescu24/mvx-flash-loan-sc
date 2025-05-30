@@ -486,6 +486,7 @@ dependencies = [
  "multiversx-sc",
  "multiversx-sc-scenario",
  "num-bigint",
+ "profit-maker",
 ]
 
 [[package]]
@@ -1570,6 +1571,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "profit-maker"
+version = "0.0.0"
+dependencies = [
+ "multiversx-sc",
+ "multiversx-sc-scenario",
+]
+
+[[package]]
+name = "profit-maker-meta"
+version = "0.0.0"
+dependencies = [
+ "multiversx-sc-meta-lib",
+ "profit-maker",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1732,6 +1749,18 @@ dependencies = [
  "flash-borrower",
  "multiversx-sc",
  "multiversx-sc-snippets",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "rust-interact-profit-maker"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "multiversx-sc",
+ "multiversx-sc-snippets",
+ "profit-maker",
  "serde",
  "toml",
 ]

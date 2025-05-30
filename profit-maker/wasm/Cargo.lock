@@ -27,22 +27,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
-name = "flash-borrower"
-version = "0.0.0"
-dependencies = [
- "multiversx-sc",
- "profit-maker",
-]
-
-[[package]]
-name = "flash-borrower-wasm"
-version = "0.0.0"
-dependencies = [
- "flash-borrower",
- "multiversx-sc-wasm-adapter",
-]
-
-[[package]]
 name = "generic-array"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -167,6 +151,14 @@ name = "profit-maker"
 version = "0.0.0"
 dependencies = [
  "multiversx-sc",
+]
+
+[[package]]
+name = "profit-maker-wasm"
+version = "0.0.0"
+dependencies = [
+ "multiversx-sc-wasm-adapter",
+ "profit-maker",
 ]
 
 [[package]]
