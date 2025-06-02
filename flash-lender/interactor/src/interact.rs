@@ -130,7 +130,7 @@ impl ContractInteract {
             .typed(proxy::FlashLoanProxy)
             .init(min_loan_amount, basis_points)
             .code(&self.contract_code)
-            .code_metadata(CodeMetadata::PAYABLE)
+            .code_metadata(CodeMetadata::PAYABLE_BY_SC)
             .returns(ReturnsNewAddress)
             .run()
             .await;
@@ -152,8 +152,7 @@ impl ContractInteract {
             .typed(proxy::FlashLoanProxy)
             .upgrade()
             .code(&self.contract_code)
-            .code_metadata(CodeMetadata::UPGRADEABLE)
-            .code_metadata(CodeMetadata::PAYABLE)
+            .code_metadata(CodeMetadata::PAYABLE_BY_SC)
             .returns(ReturnsResultUnmanaged)
             .run()
             .await;

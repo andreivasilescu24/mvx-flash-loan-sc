@@ -171,6 +171,10 @@ pub trait FlashLoan {
         // Reset pending fees
         self.user_pending_fees(&caller, token_id).clear();
 
+        // Track total fees claimed
+        self.total_fees_claimed(token_id)
+            .update(|total| *total += &pending_fees);
+
         // Update user_fee_debt to the current accumulated fees per share
         // This ensures that getPendingFees returns 0 after claiming
         let user_amount = self.user_liquidity_amount(&caller, token_id).get();
@@ -207,7 +211,38 @@ pub trait FlashLoan {
 
     #[view(getSurplusBalance)]
     fn get_surplus_balance(&self, token_id: &EgldOrEsdtTokenIdentifier) -> BigUint {
-        self.blockchain().get_sc_balance(&token_id, 0) - self.total_liquidity(token_id).get()
+        let contract_balance = self.blockchain().get_sc_balance(&token_id, 0);
+        let total_liquidity = self.total_liquidity(token_id).get();
+        let total_fees_distributed = self.total_fees_distributed(token_id).get();
+        let total_fees_claimed = self.total_fees_claimed(token_id).get();
+
+        // Unclaimed fees = distributed - claimed
+        let unclaimed_fees = if total_fees_distributed > total_fees_claimed {
+            total_fees_distributed - total_fees_claimed
+        } else {
+            BigUint::zero()
+        };
+
+        // Surplus = contract balance - liquidity - unclaimed fees
+        let total_committed = total_liquidity + unclaimed_fees;
+
+        if contract_balance > total_committed {
+            contract_balance - total_committed
+        } else {
+            BigUint::zero()
+        }
+    }
+
+    #[view(getTotalUnclaimedFees)]
+    fn get_total_unclaimed_fees(&self, token_id: &EgldOrEsdtTokenIdentifier) -> BigUint {
+        let total_fees_distributed = self.total_fees_distributed(token_id).get();
+        let total_fees_claimed = self.total_fees_claimed(token_id).get();
+
+        if total_fees_distributed > total_fees_claimed {
+            total_fees_distributed - total_fees_claimed
+        } else {
+            BigUint::zero()
+        }
     }
 
     #[view(getMaxLoan)]
@@ -342,6 +377,10 @@ pub trait FlashLoan {
 
             self.accumulated_fees_per_share(token_id)
                 .update(|accumulated| *accumulated += &additional_fees_per_share);
+
+            // Track total fees ever distributed for this token
+            self.total_fees_distributed(token_id)
+                .update(|total| *total += paid_fee);
         }
     }
 
@@ -407,6 +446,18 @@ pub trait FlashLoan {
     fn user_pending_fees(
         &self,
         user: &ManagedAddress,
+        token_id: &EgldOrEsdtTokenIdentifier,
+    ) -> SingleValueMapper<BigUint>;
+
+    #[storage_mapper("totalFeesDistributed")]
+    fn total_fees_distributed(
+        &self,
+        token_id: &EgldOrEsdtTokenIdentifier,
+    ) -> SingleValueMapper<BigUint>;
+
+    #[storage_mapper("totalFeesClaimed")]
+    fn total_fees_claimed(
+        &self,
         token_id: &EgldOrEsdtTokenIdentifier,
     ) -> SingleValueMapper<BigUint>;
 

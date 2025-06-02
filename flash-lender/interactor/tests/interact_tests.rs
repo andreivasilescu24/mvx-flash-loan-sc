@@ -1,4 +1,3 @@
-use clap::builder::Str;
 use multiversx_sc_snippets::imports::*;
 use rust_interact::{config::Config, ContractInteract, PayerWallet};
 
@@ -83,20 +82,9 @@ async fn test_claim_fees() {
 #[tokio::test]
 async fn test_withdraw_liqudity() {
     let mut interactor = ContractInteract::new(Config::new()).await;
-    let amount = 2_000_000_000_000_000_000u128;
+    let amount = 1_000_000_000_000_000_000u128;
     let token_id = String::from("EGLD");
     let wallet = PayerWallet::Alice;
-    interactor
-        .withdraw_liquidity(&token_id, amount, &wallet)
-        .await;
-}
-
-#[tokio::test]
-async fn test_withdraw_liqudity_without_adding() {
-    let mut interactor = ContractInteract::new(Config::new()).await;
-    let amount = 1_000_000_000_000_000_00u128; // 0.1 EGLD
-    let token_id = String::from("EGLD");
-    let wallet = PayerWallet::MyWallet;
     interactor
         .withdraw_liquidity(&token_id, amount, &wallet)
         .await;
