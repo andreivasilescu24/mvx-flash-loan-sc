@@ -105,4 +105,32 @@ where
             .argument(&_arg)
             .original_result()
     }
+
+    pub fn profit_generator_repay_fraction<
+        Arg0: ProxyArg<BigUint<Env::Api>>,
+    >(
+        self,
+        fraction: Arg0,
+    ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
+        self.wrapped_tx
+            .raw_call("profitGeneratorRepayFraction")
+            .argument(&fraction)
+            .original_result()
+    }
+
+    pub fn profit_generator_repay_without_fees(
+        self,
+    ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
+        self.wrapped_tx
+            .raw_call("profitGeneratorRepayWithoutFees")
+            .original_result()
+    }
+
+    pub fn profit_generator_no_repayment(
+        self,
+    ) -> TxTypedCall<Env, From, To, (), Gas, ()> {
+        self.wrapped_tx
+            .raw_call("profitGeneratorNoRepayment")
+            .original_result()
+    }
 }

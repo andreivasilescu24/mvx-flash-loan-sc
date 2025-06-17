@@ -348,13 +348,17 @@ pub trait FlashLoan {
         // Convert back to BigUint for comparison with the repaid amount
         let total_repayment = total_repayment_decimal.trunc();
 
+        // require!(
+        //     repaid_token_value >= &total_repayment,
+        //     "Insufficient repayment: required {} {}, received {} {}",
+        //     total_repayment,
+        //     token_id,
+        //     repaid_token_value,
+        //     token_id
+        // );
         require!(
             repaid_token_value >= &total_repayment,
-            "Insufficient repayment: required {} {}, received {} {}",
-            total_repayment,
-            token_id,
-            repaid_token_value,
-            token_id
+            "Insufficient repayment"
         );
 
         // Get the surplus (flash loan fee)

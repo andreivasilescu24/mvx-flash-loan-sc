@@ -1,5 +1,5 @@
 use multiversx_sc_snippets::imports::*;
-use rust_interact::{config::Config, ContractInteract, PayerWallet};
+use rust_interact::{config::Config, ContractInteract, FlashLoanFailScenario, PayerWallet};
 
 // Simple deploy test that runs on the real blockchain configuration.
 // In order for this test to work, make sure that the `config.toml` file contains the real blockchain config (or choose it manually)
@@ -38,8 +38,8 @@ async fn test_flash_config() {
 async fn test_flash_loan_scenario() {
     let mut interactor = ContractInteract::new(Config::new()).await;
 
-    let loan_amount = 1000000000000000000u128; // 1 egld/test esdt token
-    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqdw45jsjguux55rnv6u4vctezlnra0wm0d8ssyrtstf";
+    let loan_amount = 1_000_000_000_000_000_000u128;
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqf7mxaqsvjm96m09w0z0end3ft8s67wcwd8ssh6wjvf";
     let token_id = String::from("EGLD");
 
     interactor.get_max_loan(&token_id).await;
@@ -47,8 +47,28 @@ async fn test_flash_loan_scenario() {
     interactor
         .flash_loan(receiver_contract_addr, loan_amount, token_id)
         .await;
+}
 
-    println!("Flash loan executed successfully");
+#[tokio::test]
+async fn test_flash_loan_failed_scenario() {
+    let mut interactor = ContractInteract::new(Config::new()).await;
+
+    let loan_amount = 1_000_000_000_000_000_000u128;
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqf7mxaqsvjm96m09w0z0end3ft8s67wcwd8ssh6wjvf";
+    let token_id = String::from("EGLD");
+
+    let flash_loan_fail_scenario = FlashLoanFailScenario::NoRepayment;
+    let error_message = ExpectError(4, "Insufficient repayment");
+
+    interactor
+        .flash_loan_failed(
+            receiver_contract_addr,
+            loan_amount,
+            token_id,
+            flash_loan_fail_scenario,
+            error_message,
+        )
+        .await;
 }
 
 #[tokio::test]

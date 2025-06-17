@@ -18,6 +18,12 @@ pub enum PayerWallet {
     Bob,
     MyWallet,
 }
+
+pub enum FlashLoanFailScenario {
+    FractionRepayment,
+    NoRepayment,
+    ReapaymentWithoutFees,
+}
 pub async fn flash_loan_cli() {
     env_logger::init();
 
@@ -185,6 +191,52 @@ impl ContractInteract {
                 args,
             )
             .returns(ReturnsResultUnmanaged)
+            .run()
+            .await;
+
+        println!("Result: {response:?}");
+    }
+
+    pub async fn flash_loan_failed(
+        &mut self,
+        receiver_addr: &str,
+        amount: u128,
+        token_id: String,
+        flash_loan_fail_scenario: FlashLoanFailScenario,
+        expected_err_result: ExpectError<'_>,
+    ) {
+        let loan_token_id = EgldOrEsdtTokenIdentifier::from(token_id.as_bytes());
+        let amount_biguint = BigUint::<StaticApi>::from(amount);
+
+        let loan_receiver_contract_addr = bech32::decode(receiver_addr);
+
+        let receiver_contract_endpoint = match flash_loan_fail_scenario {
+            FlashLoanFailScenario::NoRepayment => {
+                ManagedBuffer::new_from_bytes(&b"profitGeneratorNoRepayment"[..])
+            }
+            FlashLoanFailScenario::FractionRepayment => {
+                ManagedBuffer::new_from_bytes(&b"profitGeneratorRepayFraction"[..])
+            }
+            FlashLoanFailScenario::ReapaymentWithoutFees => {
+                ManagedBuffer::new_from_bytes(&b"profitGeneratorRepayWithoutFees"[..])
+            }
+        };
+
+        let response = self
+            .interactor
+            .tx()
+            .from(&self.alice_wallet_address)
+            .to(self.state.current_address())
+            .gas(30_000_000u64)
+            .typed(proxy::FlashLoanProxy)
+            .flash_loan(
+                loan_token_id,
+                amount_biguint,
+                loan_receiver_contract_addr,
+                receiver_contract_endpoint,
+                ManagedArgBuffer::new(),
+            )
+            .returns(expected_err_result)
             .run()
             .await;
 

@@ -51,6 +51,71 @@ pub trait FlashBorrower {
         self.tx().to(&lender).payment(payment).transfer();
     }
 
+    #[payable("*")]
+    #[endpoint(profitGeneratorRepayFraction)]
+    fn profit_generator_repay_fraction(&self, fraction: BigUint) {
+        let mut payment = self.call_value().egld_or_single_esdt();
+        let lender = self.blockchain().get_caller();
+
+        require!(
+            !self.profit_generator_address().is_empty(),
+            "Profit generator address not set"
+        );
+
+        self.tx()
+            .to(self.profit_generator_address().get())
+            .typed(ProfitMakerProxy)
+            .take_profit()
+            .payment(payment.clone())
+            .sync_call();
+
+        // Repayment amount is reduced by half of how much the contract received
+        payment.amount -= payment.amount.clone().div(BigUint::from(2u128));
+
+        // repay the loan with only a fraction of the required amount
+        self.tx().to(&lender).payment(payment).transfer();
+    }
+
+    #[payable("*")]
+    #[endpoint(profitGeneratorRepayWithoutFees)]
+    fn profit_generator_repay_without_fees(&self) {
+        let mut payment = self.call_value().egld_or_single_esdt();
+        let lender = self.blockchain().get_caller();
+
+        require!(
+            !self.profit_generator_address().is_empty(),
+            "Profit generator address not set"
+        );
+
+        self.tx()
+            .to(self.profit_generator_address().get())
+            .typed(ProfitMakerProxy)
+            .take_profit()
+            .payment(payment.clone())
+            .sync_call();
+
+        // repay the loan without fees
+        self.tx().to(&lender).payment(payment).transfer();
+    }
+
+    #[payable("*")]
+    #[endpoint(profitGeneratorNoRepayment)]
+    fn profit_generator_no_repayment(&self) {
+        let mut payment = self.call_value().egld_or_single_esdt();
+
+        require!(
+            !self.profit_generator_address().is_empty(),
+            "Profit generator address not set"
+        );
+
+        self.tx()
+            .to(self.profit_generator_address().get())
+            .typed(ProfitMakerProxy)
+            .take_profit()
+            .payment(payment.clone())
+            .sync_call();
+    }
+
     #[storage_mapper("profitGeneratorAddress")]
     fn profit_generator_address(&self) -> SingleValueMapper<ManagedAddress>;
 }
