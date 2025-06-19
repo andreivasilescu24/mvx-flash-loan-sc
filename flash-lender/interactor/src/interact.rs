@@ -278,14 +278,41 @@ impl ContractInteract {
             .tx()
             .from(wallet_address)
             .to(self.state.current_address())
-            .gas(30_000_000u64)
+            .gas(5_000_000u64)
             .typed(proxy::FlashLoanProxy)
             .claim_fees(EgldOrEsdtTokenIdentifier::from(token_id.as_bytes()))
             .returns(ReturnsResultUnmanaged)
             .run()
             .await;
 
-        println!("Result: {response:?}");
+        println!("Result: {:?}", response);
+    }
+
+    pub async fn claim_fees_fail_test(
+        &mut self,
+        token_id: &String,
+        wallet: &PayerWallet,
+        expected_error: ExpectError<'_>,
+    ) {
+        let wallet_address = match wallet {
+            PayerWallet::Alice => &self.alice_wallet_address,
+            PayerWallet::MyWallet => &self.my_wallet_address,
+            PayerWallet::Bob => &self.bob_wallet_address,
+        };
+
+        let response = self
+            .interactor
+            .tx()
+            .from(wallet_address)
+            .to(self.state.current_address())
+            .gas(5_000_000u64)
+            .typed(proxy::FlashLoanProxy)
+            .claim_fees(EgldOrEsdtTokenIdentifier::from(token_id.as_bytes()))
+            .returns(expected_error)
+            .run()
+            .await;
+
+        println!("Result: {:?}", response);
     }
 
     pub async fn flash_loan_config(&mut self) {
@@ -369,7 +396,7 @@ impl ContractInteract {
             .tx()
             .from(wallet_address)
             .to(self.state.current_address())
-            .gas(50_000_000u64)
+            .gas(5_000_000u64)
             .typed(proxy::FlashLoanProxy)
             .add_liquidity()
             .egld_or_single_esdt(&token_identifier, 0, &amount_biguint)
@@ -401,7 +428,7 @@ impl ContractInteract {
             .tx()
             .from(payer_wallet)
             .to(self.state.current_address())
-            .gas(50_000_000u64)
+            .gas(5_000_000u64)
             .typed(proxy::FlashLoanProxy)
             .withdraw_liquidity(&token_identifier, amount_biguint)
             .returns(ReturnsResultUnmanaged)

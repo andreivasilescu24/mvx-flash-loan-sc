@@ -1,3 +1,6 @@
+use core::time;
+use std::time::Duration;
+
 use multiversx_sc_snippets::imports::*;
 use rust_interact::{config::Config, ContractInteract, FlashLoanFailScenario, PayerWallet};
 
@@ -50,6 +53,24 @@ async fn test_flash_loan_scenario() {
 }
 
 #[tokio::test]
+async fn test_multiple_flash_loans() {
+    let mut interactor = ContractInteract::new(Config::new()).await;
+
+    let loan_amount = 1_000_000_000_000_000_000u128;
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqf7mxaqsvjm96m09w0z0end3ft8s67wcwd8ssh6wjvf";
+    let token_id = String::from("EGLD");
+
+    interactor.get_max_loan(&token_id).await;
+
+    for _ in 0..11 {
+        interactor
+            .flash_loan(receiver_contract_addr, loan_amount, token_id.clone())
+            .await;
+        tokio::time::sleep(Duration::from_secs(6)).await;
+    }
+}
+
+#[tokio::test]
 async fn test_flash_loan_failed_scenario() {
     let mut interactor = ContractInteract::new(Config::new()).await;
 
@@ -72,12 +93,71 @@ async fn test_flash_loan_failed_scenario() {
 }
 
 #[tokio::test]
+async fn test_claim_fees_split_scenario() {
+    let mut interactor = ContractInteract::new(Config::new()).await;
+    let token_id = String::from("EGLD");
+    let tokend_id_clone = token_id.clone();
+    let amount = 1_000_000_000_000_000_000;
+
+    let wallet_alice = PayerWallet::Alice;
+    let wallet_bob = PayerWallet::Bob;
+    let my_wallet = PayerWallet::MyWallet;
+
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqf7mxaqsvjm96m09w0z0end3ft8s67wcwd8ssh6wjvf";
+
+    interactor
+        .add_liquidity(&token_id, amount, &wallet_alice)
+        .await;
+    interactor
+        .add_liquidity(&token_id, amount, &wallet_bob)
+        .await;
+    interactor
+        .add_liquidity(&token_id, amount, &my_wallet)
+        .await;
+
+    interactor
+        .flash_loan(receiver_contract_addr, amount, token_id)
+        .await;
+
+    interactor.claim_fees(&tokend_id_clone, &wallet_alice).await;
+    interactor.claim_fees(&tokend_id_clone, &wallet_bob).await;
+    interactor.claim_fees(&tokend_id_clone, &my_wallet).await;
+}
+
+#[tokio::test]
+async fn test_add_liquidity_after_flash_loan_no_fees_received() {
+    let mut interactor = ContractInteract::new(Config::new()).await;
+    let token_id = String::from("EGLD");
+    let token_id_clone = token_id.clone();
+    let amount = 1_000_000_000_000_000_000u128; // 1 EGLD
+    let receiver_contract_addr = "erd1qqqqqqqqqqqqqpgqf7mxaqsvjm96m09w0z0end3ft8s67wcwd8ssh6wjvf";
+    let expected_fee_claim_error = ExpectError(4, "No fees to claim");
+
+    let wallet_alice = PayerWallet::Alice;
+    let my_wallet = PayerWallet::MyWallet;
+    interactor
+        .add_liquidity(&token_id, amount, &wallet_alice)
+        .await;
+    interactor
+        .flash_loan(&receiver_contract_addr, amount, token_id)
+        .await;
+    interactor
+        .add_liquidity(&token_id_clone, amount, &my_wallet)
+        .await;
+
+    interactor.claim_fees(&token_id_clone, &wallet_alice).await;
+    interactor
+        .claim_fees_fail_test(&token_id_clone, &my_wallet, expected_fee_claim_error)
+        .await;
+}
+
+#[tokio::test]
 async fn test_add_liquidity() {
     let mut interactor = ContractInteract::new(Config::new()).await;
     let token_id = String::from("EGLD");
     let amount = 1_000_000_000_000_000_000u128; // 1 EGLD
 
-    let wallet = PayerWallet::Alice;
+    let wallet = PayerWallet::Bob;
     interactor.add_liquidity(&token_id, amount, &wallet).await;
 }
 
@@ -104,7 +184,7 @@ async fn test_withdraw_liqudity() {
     let mut interactor = ContractInteract::new(Config::new()).await;
     let amount = 1_000_000_000_000_000_000u128;
     let token_id = String::from("EGLD");
-    let wallet = PayerWallet::Alice;
+    let wallet = PayerWallet::MyWallet;
     interactor
         .withdraw_liquidity(&token_id, amount, &wallet)
         .await;
